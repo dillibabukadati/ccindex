@@ -53,5 +53,5 @@ def test_query_no_index_exits_cleanly(runner, tmp_path):
 def test_query_format_hook_outputs_empty_when_no_index(runner, tmp_path):
     with runner.isolated_filesystem(temp_dir=tmp_path):
         result = runner.invoke(main, ["query", "auth", "--format", "hook"])
-    assert result.exit_code == 1
+    assert result.exit_code == 0  # silent no-op — must not block Claude Code prompts
     assert result.output.strip() == ""
