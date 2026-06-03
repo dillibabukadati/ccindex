@@ -351,10 +351,12 @@ def update():
     """Download latest models from GitHub releases."""
     import urllib.request
 
-    RELEASE_BASE = "https://github.com/dillibk777/ccindex/releases/latest/download"
+    RELEASE_BASE = "https://github.com/dillibabukadati/ccindex/releases/latest/download"
+    # Release assets use flat naming: {model_name}-{filename}
+    # e.g. jina-code-onnx-model.onnx, jina-code-onnx-model.onnx_data
     MODELS = {
-        "jina-code-onnx": ["model.onnx", "tokenizer.json", "tokenizer_config.json", "special_tokens_map.json"],
-        "reranker-onnx": ["model.onnx", "tokenizer.json"],
+        "jina-code-onnx": ["model.onnx", "model.onnx_data"],
+        "reranker-onnx": ["model.onnx"],
     }
     dest_root = Path.home() / ".ccindex" / "models"
 
@@ -362,15 +364,29 @@ def update():
         model_dir = dest_root / model_name
         model_dir.mkdir(parents=True, exist_ok=True)
         for filename in files:
-            url = f"{RELEASE_BASE}/{model_name}/{filename}"
+            asset_name = f"{model_name}-{filename}"  # flat release asset name
+            url = f"{RELEASE_BASE}/{asset_name}"
             dest = model_dir / filename
-            click.echo(f"Downloading {model_name}/{filename}...")
+            if dest.exists():
+                click.echo(f"  {model_name}/{filename} already exists, skipping.")
+                continue
+            click.echo(f"Downloading {model_name}/{filename} (~{_model_size(model_name, filename)})...")
             try:
                 urllib.request.urlretrieve(url, dest)
+                click.echo(f"  done.")
             except Exception as e:
-                click.echo(f"Failed: {e}", err=True)
+                click.echo(f"  Failed: {e}", err=True)
 
-    click.echo("Models updated. Run: ccindex index")
+    click.echo("Models ready. Run: ccindex index")
+
+
+def _model_size(model_name: str, filename: str) -> str:
+    sizes = {
+        ("jina-code-onnx", "model.onnx"): "154MB",
+        ("jina-code-onnx", "model.onnx_data"): "611MB",
+        ("reranker-onnx", "model.onnx"): "86MB",
+    }
+    return sizes.get((model_name, filename), "?")
 
 
 @main.group()
