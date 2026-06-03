@@ -41,7 +41,13 @@ class EmbeddingModel:
         if not onnx_path.exists():
             onnx_path = model_dir / "model.onnx"
         self.session = _make_session(str(onnx_path))
+        # Probe embedding dimension once (handles 768-dim jina and 384-dim MiniLM etc.)
+        self._dim = self.embed(["x"]).shape[1]
         self._input_names = {i.name for i in self.session.get_inputs()}
+
+    @property
+    def dim(self) -> int:
+        return self._dim
 
     def embed(self, texts: list[str]) -> np.ndarray:
         encoded = self.tokenizer.encode_batch(texts)

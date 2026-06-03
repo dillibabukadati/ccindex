@@ -22,7 +22,7 @@ class Indexer:
         self.model = model
         self.progress_cb = progress_cb
         self._db_path = root / ".ccindex" / "index.db"
-        self._index = Index(self._db_path)
+        self._index = Index(self._db_path, embedding_dim=model.dim)
 
     @property
     def index(self) -> Index:

@@ -41,7 +41,7 @@ def index(show_progress):
     db_path = _get_db_path(root)
 
     try:
-        model_dir = get_model_dir("jina-code-onnx")
+        model_dir = get_model_dir(config.embed_model)
     except ModelNotFoundError as e:
         click.echo(str(e), err=True)
         sys.exit(2)
@@ -144,7 +144,7 @@ def query(text, top, fmt):
         sys.exit(1)
 
     try:
-        embed_dir = get_model_dir("jina-code-onnx")
+        embed_dir = get_model_dir(config.embed_model)
         rerank_dir = get_model_dir("reranker-onnx")
     except ModelNotFoundError as e:
         if fmt == "hook":
@@ -152,11 +152,10 @@ def query(text, top, fmt):
         click.echo(str(e), err=True)
         sys.exit(2)
 
-    _lazy_reindex(root, config, embed_dir, db_path)
-
     model = EmbeddingModel(embed_dir)
     reranker = Reranker(rerank_dir)
-    index = Index(db_path)
+    _lazy_reindex(root, config, embed_dir, db_path, model.dim)
+    index = Index(db_path, embedding_dim=model.dim)
     retriever = Retriever(index=index, model=model, reranker=reranker, config=config)
 
     results = retriever.query(text)
@@ -186,14 +185,14 @@ def query(text, top, fmt):
             click.echo(r.chunk_text[:500])
 
 
-def _lazy_reindex(root: Path, config, embed_dir: Path, db_path: Path):
+def _lazy_reindex(root: Path, config, embed_dir: Path, db_path: Path, embedding_dim: int = 768):
     from ccindex.models import EmbeddingModel
     from ccindex.index import Index
     from ccindex.indexer import Indexer
     from ccindex import git
 
     try:
-        idx = Index(db_path)
+        idx = Index(db_path, embedding_dim=embedding_dim)
         stored_commit = idx.get_meta("git_commit_hash")
         repo_root = git.find_repo_root(root)
 

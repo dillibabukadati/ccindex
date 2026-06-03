@@ -9,6 +9,7 @@ from ccindex.indexer import Indexer
 
 def _make_mock_model():
     model = MagicMock()
+    model.dim = 768
     model.embed.side_effect = lambda texts: np.random.randn(len(texts), 768).astype(np.float32)
     return model
 
