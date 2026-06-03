@@ -104,7 +104,7 @@ ccindex (Python CLI)
 - Secret files: `.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa`, `id_ed25519`
 - Compiled JS output: detected via `tsconfig.json` `outDir` field
 - Binary files (detected by content, not extension)
-- Files over 500KB
+- Files over 1MB
 
 **User-configurable exclusions:**
 - `.ccindexignore` in project root (same syntax as `.gitignore`)
@@ -144,7 +144,8 @@ CREATE TABLE meta (
     key   TEXT PRIMARY KEY,
     value TEXT
 );
--- stores: model_hash, schema_version, index_state ('complete' | 'partial')
+-- stores: model_hash, schema_version, index_state ('complete' | 'partial'),
+--         git_branch, git_commit_hash
 
 CREATE TABLE chunks (
     id          INTEGER PRIMARY KEY,
@@ -179,9 +180,20 @@ User query text
     │
     ▼
 Lazy incremental check
-    stat() all tracked files (~10ms for 10k files)
-    re-embed changed files in batches of 32 (ONNX)
-    skip re-index if changed files > max_stale_files (warn: index may be stale)
+    ├─ Git-aware path (repo detected):
+    │    current_commit = git rev-parse HEAD
+    │    if current_commit != meta.git_commit_hash:
+    │        changed_files = git diff --name-only <stored_commit> HEAD
+    │        re-embed only those files in batches of 32 (exact, fast)
+    │        update meta.git_branch + meta.git_commit_hash
+    │    else:
+    │        stat() all tracked files, re-embed mtime-changed files
+    │        skip re-index if changed files > max_stale_files (warn stale)
+    │
+    └─ Non-git fallback:
+         stat() all tracked files (~10ms for 10k files)
+         re-embed changed files in batches of 32 (ONNX)
+         skip re-index if changed files > max_stale_files (warn: index may be stale)
     │
     ▼
 Stage 1a — Semantic recall
@@ -337,7 +349,7 @@ relevance_threshold = 0.3
 token_cap = 1500
 
 [index]
-max_file_size_kb = 500
+max_file_size_kb = 1024
 batch_size = 32
 max_stale_files = 200    # skip lazy re-index above this, warn stale instead
 
@@ -372,6 +384,9 @@ Same structure, any key overrides the user-level value.
 | Windows paths | All path handling via `pathlib.Path` — no hardcoded `/` separators |
 | SQLite concurrent access | WAL mode enabled — daemon writes and hook reads never block each other |
 | `uv tool install` model path | Model path resolution checks package install dir first, then `~/.ccindex/models/` |
+| Branch switch (feature → main) | `git rev-parse HEAD` compared against `meta.git_commit_hash` on every query; mismatch triggers `git diff --name-only` re-index of only changed files — works even without post-checkout hook |
+| Detached HEAD / no git | Fall back to mtime-based incremental scan; `git_commit_hash` not stored |
+| Merge conflict state (MERGE_HEAD) | Detect via `git status`, warn user index may be mid-merge, skip re-index until resolved |
 
 ---
 
