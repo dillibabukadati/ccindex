@@ -361,7 +361,7 @@ def update():
     RELEASE_BASE = "https://github.com/dillibabukadati/ccindex/releases/latest/download"
     # Release assets use flat naming: {model_name}-{filename}
     MODELS = {
-        "jina-code-onnx": ["model.onnx", "model.onnx_data"],
+        "jina-code-onnx": ["model-int8.onnx"],  # INT8: 154MB self-contained (was 765MB split FP32)
         "reranker-onnx": ["model.onnx"],
     }
     dest_root = Path.home() / ".ccindex" / "models"
@@ -393,8 +393,7 @@ def update():
 
 def _model_size(model_name: str, filename: str) -> str:
     sizes = {
-        ("jina-code-onnx", "model.onnx"): "154MB",
-        ("jina-code-onnx", "model.onnx_data"): "611MB",
+        ("jina-code-onnx", "model-int8.onnx"): "154MB",
         ("reranker-onnx", "model.onnx"): "86MB",
     }
     return sizes.get((model_name, filename), "?")

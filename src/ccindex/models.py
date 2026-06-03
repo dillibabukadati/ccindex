@@ -15,7 +15,9 @@ class ModelNotFoundError(Exception):
 
 def get_model_dir(model_name: str) -> Path:
     for candidate in (_PACKAGE_ROOT / "models" / model_name, _USER_CACHE / model_name):
-        if candidate.is_dir() and (candidate / "model.onnx").exists():
+        if candidate.is_dir() and (
+            (candidate / "model-int8.onnx").exists() or (candidate / "model.onnx").exists()
+        ):
             return candidate
     raise ModelNotFoundError(
         f"Model '{model_name}' not found.\n"
@@ -34,7 +36,11 @@ class EmbeddingModel:
         # Dynamic padding (pad to longest in batch, not fixed 512) — much faster for short chunks
         self.tokenizer.enable_padding(pad_id=0, pad_token="[PAD]")
         self.tokenizer.enable_truncation(max_length=512)
-        self.session = _make_session(str(model_dir / "model.onnx"))
+        # Prefer INT8 model (5x smaller download, identical quality); fall back to FP32
+        onnx_path = model_dir / "model-int8.onnx"
+        if not onnx_path.exists():
+            onnx_path = model_dir / "model.onnx"
+        self.session = _make_session(str(onnx_path))
         self._input_names = {i.name for i in self.session.get_inputs()}
 
     def embed(self, texts: list[str]) -> np.ndarray:

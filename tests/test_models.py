@@ -9,6 +9,7 @@ from ccindex.models import get_model_dir, ModelNotFoundError, EmbeddingModel, Re
 def test_get_model_dir_finds_package_bundled(tmp_path):
     bundled = tmp_path / "models" / "jina-code-onnx"
     bundled.mkdir(parents=True)
+    (bundled / "model-int8.onnx").touch()
     with patch("ccindex.models._PACKAGE_ROOT", tmp_path):
         result = get_model_dir("jina-code-onnx")
     assert result == bundled
@@ -17,6 +18,7 @@ def test_get_model_dir_finds_package_bundled(tmp_path):
 def test_get_model_dir_finds_user_cache(tmp_path):
     user_cache = tmp_path / ".ccindex" / "models" / "jina-code-onnx"
     user_cache.mkdir(parents=True)
+    (user_cache / "model.onnx").touch()  # also accepts legacy FP32
     with patch("ccindex.models._PACKAGE_ROOT", tmp_path / "nonexistent"):
         with patch("ccindex.models._USER_CACHE", tmp_path / ".ccindex" / "models"):
             result = get_model_dir("jina-code-onnx")
