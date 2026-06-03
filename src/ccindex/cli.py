@@ -350,10 +350,16 @@ def doctor():
 def update():
     """Download latest models from GitHub releases."""
     import urllib.request
+    import ssl
+
+    try:
+        import certifi
+        ssl_ctx = ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        ssl_ctx = ssl.create_default_context()
 
     RELEASE_BASE = "https://github.com/dillibabukadati/ccindex/releases/latest/download"
     # Release assets use flat naming: {model_name}-{filename}
-    # e.g. jina-code-onnx-model.onnx, jina-code-onnx-model.onnx_data
     MODELS = {
         "jina-code-onnx": ["model.onnx", "model.onnx_data"],
         "reranker-onnx": ["model.onnx"],
@@ -364,17 +370,22 @@ def update():
         model_dir = dest_root / model_name
         model_dir.mkdir(parents=True, exist_ok=True)
         for filename in files:
-            asset_name = f"{model_name}-{filename}"  # flat release asset name
+            asset_name = f"{model_name}-{filename}"
             url = f"{RELEASE_BASE}/{asset_name}"
             dest = model_dir / filename
             if dest.exists():
-                click.echo(f"  {model_name}/{filename} already exists, skipping.")
+                click.echo(f"  {model_name}/{filename} already present, skipping.")
                 continue
-            click.echo(f"Downloading {model_name}/{filename} (~{_model_size(model_name, filename)})...")
+            size = _model_size(model_name, filename)
+            click.echo(f"Downloading {model_name}/{filename} (~{size})...")
             try:
-                urllib.request.urlretrieve(url, dest)
+                req = urllib.request.Request(url)
+                with urllib.request.urlopen(req, context=ssl_ctx) as resp, open(dest, "wb") as f:
+                    f.write(resp.read())
                 click.echo(f"  done.")
             except Exception as e:
+                if dest.exists():
+                    dest.unlink()  # remove partial file
                 click.echo(f"  Failed: {e}", err=True)
 
     click.echo("Models ready. Run: ccindex index")

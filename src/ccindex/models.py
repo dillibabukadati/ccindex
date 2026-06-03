@@ -14,12 +14,9 @@ class ModelNotFoundError(Exception):
 
 
 def get_model_dir(model_name: str) -> Path:
-    bundled = _PACKAGE_ROOT / "models" / model_name
-    if bundled.exists():
-        return bundled
-    user_cached = _USER_CACHE / model_name
-    if user_cached.exists():
-        return user_cached
+    for candidate in (_PACKAGE_ROOT / "models" / model_name, _USER_CACHE / model_name):
+        if candidate.is_dir() and (candidate / "model.onnx").exists():
+            return candidate
     raise ModelNotFoundError(
         f"Model '{model_name}' not found.\n"
         f"Run: ccindex update"

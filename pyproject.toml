@@ -27,6 +27,7 @@ dependencies = [
     "watchdog>=4.0",
     "pathspec>=0.12",
     "tomli>=2.0; python_version < '3.11'",
+    "certifi>=2024.0",
 ]
 
 [project.scripts]
