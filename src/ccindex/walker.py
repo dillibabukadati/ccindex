@@ -9,6 +9,7 @@ _ALWAYS_SKIP_DIRS = frozenset({
     "node_modules", "__pycache__", ".git", "dist", "build",
     ".ccindex", ".venv", "venv", "env", ".tox", ".mypy_cache",
     ".pytest_cache", ".ruff_cache", "coverage", ".coverage",
+    "models",  # bundled ONNX model files — not project source
 })
 
 _LOCK_FILES = frozenset({

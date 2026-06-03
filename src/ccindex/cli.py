@@ -139,7 +139,7 @@ def query(text, top, fmt):
 
     if not db_path.exists():
         if fmt == "hook":
-            sys.exit(1)
+            sys.exit(0)  # no index yet — proceed silently, don't block the prompt
         click.echo("No index found. Run: ccindex index", err=True)
         sys.exit(1)
 
@@ -148,7 +148,7 @@ def query(text, top, fmt):
         rerank_dir = get_model_dir("reranker-onnx")
     except ModelNotFoundError as e:
         if fmt == "hook":
-            sys.exit(1)
+            sys.exit(0)  # models missing — proceed silently
         click.echo(str(e), err=True)
         sys.exit(2)
 
