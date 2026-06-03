@@ -1,2 +1,2 @@
-models/jina-code-onnx/*.onnx filter=lfs diff=lfs merge=lfs -text
-models/reranker-onnx/*.onnx filter=lfs diff=lfs merge=lfs -text
+# ONNX model files are not stored in git.
+# Run `ccindex update` to download them from GitHub releases.

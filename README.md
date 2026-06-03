@@ -68,10 +68,19 @@ pip install ccindex
 uv add ccindex
 ```
 
-Models are bundled with the package (~240MB total). If you installed via pip without Git LFS:
+Then download the ONNX models (~240MB):
 
 ```bash
-ccindex update   # downloads models from GitHub releases
+ccindex update
+```
+
+If cloning the repo directly:
+
+```bash
+git clone https://github.com/dillibabukadati/ccindex
+cd ccindex
+pip install -e .
+ccindex update   # download models from GitHub releases
 ```
 
 Verify everything is working:
