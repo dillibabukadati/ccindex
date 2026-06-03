@@ -23,15 +23,18 @@ def get_model_dir(model_name: str) -> Path:
     )
 
 
+def _make_session(model_path: str) -> ort.InferenceSession:
+    # CoreML with partial graph support causes CPU↔CoreML switching overhead (slower than pure CPU)
+    return ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
+
+
 class EmbeddingModel:
     def __init__(self, model_dir: Path):
         self.tokenizer = Tokenizer.from_file(str(model_dir / "tokenizer.json"))
-        self.tokenizer.enable_padding(pad_id=0, pad_token="[PAD]", length=512)
+        # Dynamic padding (pad to longest in batch, not fixed 512) — much faster for short chunks
+        self.tokenizer.enable_padding(pad_id=0, pad_token="[PAD]")
         self.tokenizer.enable_truncation(max_length=512)
-        self.session = ort.InferenceSession(
-            str(model_dir / "model.onnx"),
-            providers=["CPUExecutionProvider"],
-        )
+        self.session = _make_session(str(model_dir / "model.onnx"))
         self._input_names = {i.name for i in self.session.get_inputs()}
 
     def embed(self, texts: list[str]) -> np.ndarray:
@@ -56,12 +59,9 @@ class EmbeddingModel:
 class Reranker:
     def __init__(self, model_dir: Path):
         self.tokenizer = Tokenizer.from_file(str(model_dir / "tokenizer.json"))
-        self.tokenizer.enable_padding(pad_id=0, pad_token="[PAD]", length=512)
+        self.tokenizer.enable_padding(pad_id=0, pad_token="[PAD]")
         self.tokenizer.enable_truncation(max_length=512)
-        self.session = ort.InferenceSession(
-            str(model_dir / "model.onnx"),
-            providers=["CPUExecutionProvider"],
-        )
+        self.session = _make_session(str(model_dir / "model.onnx"))
         self._input_names = {i.name for i in self.session.get_inputs()}
 
     def rerank(self, query: str, passages: list[str]) -> list[float]:

@@ -38,32 +38,40 @@ class Indexer:
         else:
             gi.write_text(entry)
 
-    def _embed_batch(self, chunks: list[Chunk]) -> list[tuple[Chunk, np.ndarray]]:
+    def _embed_and_write(self, chunks: list[Chunk], done_so_far: int, total: int):
+        """Embed chunks in length-sorted batches and write to DB immediately.
+
+        Sorting by text length before batching keeps each batch's padded seq_len
+        near the actual chunk length, avoiding O(seq²) wasted attention on padding.
+        e.g. batch of 32 short chunks pads to ~160 tokens (fast) instead of 512 (slow).
+        """
         batch_size = self.config.batch_size
-        results: list[tuple[Chunk, np.ndarray]] = []
-        for i in range(0, len(chunks), batch_size):
-            batch = chunks[i:i + batch_size]
-            texts = [c.chunk_text for c in batch]
-            embeddings = self.model.embed(texts)
-            for chunk, emb in zip(batch, embeddings):
-                results.append((chunk, emb))
-        return results
+        # Sort by length so each batch pads to its own max, not the global max
+        sorted_chunks = sorted(chunks, key=lambda c: len(c.chunk_text))
+        for i in range(0, len(sorted_chunks), batch_size):
+            batch = sorted_chunks[i:i + batch_size]
+            embeddings = self.model.embed([c.chunk_text for c in batch])
+            self._index.upsert_chunks(list(zip(batch, embeddings)))
+            if self.progress_cb and total:
+                self.progress_cb(min(done_so_far + i + batch_size, total), total)
 
     def run_full(self, show_progress: bool = False):
         self._ensure_gitignore()
         self._index.set_meta("index_state", "partial")
 
         files = list(walk_project(self.root, self.config))
-        total = len(files)
 
-        for i, path in enumerate(files):
-            chunks = chunk_file(path, self.root, self.config)
-            if not chunks:
-                continue
-            items = self._embed_batch(chunks)
-            self._index.upsert_chunks(items)
-            if self.progress_cb:
-                self.progress_cb(i + 1, total)
+        # Collect all chunks first (lightweight — just text, no embeddings yet)
+        all_chunks: list[Chunk] = []
+        for path in files:
+            all_chunks.extend(chunk_file(path, self.root, self.config))
+
+        total = len(all_chunks)
+        if self.progress_cb:
+            self.progress_cb(0, total)
+
+        # Embed globally in batches and write to DB as we go (avoids holding all embeddings in RAM)
+        self._embed_and_write(all_chunks, 0, total)
 
         self._index.set_meta("index_state", "complete")
 
@@ -92,10 +100,13 @@ class Indexer:
             if stored_rel not in current_rels:
                 self._index.delete_by_path(stored_rel)
 
+        all_chunks: list[Chunk] = []
         for path in to_update:
             chunks = chunk_file(path, self.root, self.config)
             if not chunks:
                 self._index.delete_by_path(path.relative_to(self.root).as_posix())
-                continue
-            items = self._embed_batch(chunks)
-            self._index.upsert_chunks(items)
+            else:
+                all_chunks.extend(chunks)
+
+        if all_chunks:
+            self._embed_and_write(all_chunks, 0, 0)
