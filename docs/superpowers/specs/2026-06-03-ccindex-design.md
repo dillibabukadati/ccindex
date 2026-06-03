@@ -181,7 +181,7 @@ User query text
 Lazy incremental check
     stat() all tracked files (~10ms for 10k files)
     re-embed changed files in batches of 32 (ONNX)
-    skip re-index if >200 files changed (warn: index may be stale)
+    skip re-index if changed files > max_stale_files (warn: index may be stale)
     │
     ▼
 Stage 1a — Semantic recall
@@ -309,12 +309,21 @@ Prints package version.
 
 ## Git Post-Checkout Hook (Optional)
 
-When user opts in during `ccindex install`, writes `.git/hooks/post-checkout`:
+When user opts in during `ccindex install`, writes two git hooks:
+
+`.git/hooks/post-checkout` — fires after `git checkout`, `git switch`, `git stash pop`:
 ```bash
 #!/bin/sh
 ccindex index
 ```
-Triggers incremental re-index automatically after `git checkout`, `git pull`, `git merge`, `git stash pop`.
+
+`.git/hooks/post-merge` — fires after `git pull`, `git merge`:
+```bash
+#!/bin/sh
+ccindex index
+```
+
+Both trigger incremental re-index only (mtime-based), not a full rebuild.
 
 ---
 
@@ -330,6 +339,7 @@ token_cap = 1500
 [index]
 max_file_size_kb = 500
 batch_size = 32
+max_stale_files = 200    # skip lazy re-index above this, warn stale instead
 
 [ignore]
 patterns = ["*.generated.ts", "migrations/"]
