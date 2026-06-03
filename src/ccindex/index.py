@@ -30,8 +30,9 @@ def _serialize(v: np.ndarray) -> bytes:
 
 
 class Index:
-    def __init__(self, db_path: Path):
+    def __init__(self, db_path: Path, embedding_dim: int = 768):
         db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._embedding_dim = embedding_dim
         self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
         self._conn.enable_load_extension(True)
         sqlite_vec.load(self._conn)
@@ -58,7 +59,7 @@ class Index:
             self.set_meta("index_state", "partial")
 
     def _create_schema(self):
-        self._conn.executescript("""
+        self._conn.executescript(f"""
             CREATE TABLE IF NOT EXISTS meta (
                 key   TEXT PRIMARY KEY,
                 value TEXT
@@ -84,7 +85,7 @@ class Index:
             );
 
             CREATE VIRTUAL TABLE IF NOT EXISTS chunks_vec USING vec0(
-                embedding FLOAT[768]
+                embedding FLOAT[{self._embedding_dim}]
             );
         """)
         self._conn.commit()

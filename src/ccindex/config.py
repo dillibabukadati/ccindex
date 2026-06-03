@@ -18,6 +18,7 @@ class Config:
     batch_size: int = 32
     max_stale_files: int = 200
     ignore_patterns: list[str] = field(default_factory=list)
+    embed_model: str = "jina-code-onnx"
 
 
 def _load_toml(path: Path) -> dict:
@@ -44,4 +45,5 @@ def load_config(project_root: Path | None = None) -> Config:
         batch_size=merged.get("batch_size", 32),
         max_stale_files=merged.get("max_stale_files", 200),
         ignore_patterns=merged.get("patterns", []),
+        embed_model=merged.get("embed_model", "jina-code-onnx"),
     )
