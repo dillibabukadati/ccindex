@@ -12,7 +12,7 @@ else:
 @dataclass
 class Config:
     top_k: int = 5
-    relevance_threshold: float = 0.3
+    relevance_threshold: float = 0.0
     token_cap: int = 1500
     max_file_size_kb: int = 1024
     batch_size: int = 32
@@ -38,7 +38,7 @@ def load_config(project_root: Path | None = None) -> Config:
 
     return Config(
         top_k=merged.get("top_k", 5),
-        relevance_threshold=merged.get("relevance_threshold", 0.3),
+        relevance_threshold=merged.get("relevance_threshold", 0.0),
         token_cap=merged.get("token_cap", 1500),
         max_file_size_kb=merged.get("max_file_size_kb", 1024),
         batch_size=merged.get("batch_size", 32),

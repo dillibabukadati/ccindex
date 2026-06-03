@@ -68,14 +68,14 @@ class Reranker:
         self._input_names = {i.name for i in self.session.get_inputs()}
 
     def rerank(self, query: str, passages: list[str]) -> list[float]:
-        pairs = [f"{query}[SEP]{p}" for p in passages]
-        encoded = self.tokenizer.encode_batch(pairs)
+        # Pass as sequence pairs so the tokenizer inserts [CLS] query [SEP] passage [SEP]
+        encoded = self.tokenizer.encode_batch([[query, p] for p in passages])
         input_ids = np.array([e.ids for e in encoded], dtype=np.int64)
         attention_mask = np.array([e.attention_mask for e in encoded], dtype=np.int64)
 
         feed = {"input_ids": input_ids, "attention_mask": attention_mask}
         if "token_type_ids" in self._input_names:
-            feed["token_type_ids"] = np.zeros_like(input_ids)
+            feed["token_type_ids"] = np.array([e.type_ids for e in encoded], dtype=np.int64)
 
         outputs = self.session.run(None, feed)
         logits = outputs[0]

@@ -6,7 +6,7 @@ from ccindex.config import Config, load_config
 def test_default_config():
     cfg = Config()
     assert cfg.top_k == 5
-    assert cfg.relevance_threshold == 0.3
+    assert cfg.relevance_threshold == 0.0
     assert cfg.token_cap == 1500
     assert cfg.max_file_size_kb == 1024
     assert cfg.batch_size == 32
