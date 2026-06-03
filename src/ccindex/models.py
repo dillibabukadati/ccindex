@@ -26,8 +26,16 @@ def get_model_dir(model_name: str) -> Path:
 
 
 def _make_session(model_path: str) -> ort.InferenceSession:
-    # CoreML with partial graph support causes CPU↔CoreML switching overhead (slower than pure CPU)
-    return ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
+    # CoreML partial-graph support causes CPU↔CoreML switching overhead — pure CPU is faster.
+    # ORT_ENABLE_ALL on INT8 ONNX graphs (many quantize/dequantize nodes) uses 3-4GB RAM during
+    # optimization and takes 3+ minutes to load. EXTENDED loads in <1s at ~700MB and is 40% faster
+    # at inference than BASIC.
+    # Cap threads: default=0 (all cores) causes per-thread activation buffers in the GB range.
+    opts = ort.SessionOptions()
+    opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_EXTENDED
+    opts.intra_op_num_threads = 8
+    opts.inter_op_num_threads = 1
+    return ort.InferenceSession(model_path, providers=["CPUExecutionProvider"], sess_options=opts)
 
 
 class EmbeddingModel:

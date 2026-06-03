@@ -2,6 +2,7 @@ from __future__ import annotations
 import sys
 import json
 import os
+import time
 from pathlib import Path
 import click
 from ccindex import __version__
@@ -10,9 +11,14 @@ from ccindex.agents import ADAPTERS
 
 
 def _find_project_root() -> Path:
-    """Walk up from CWD to find nearest .ccindex/ dir (monorepo support)."""
+    """Walk up from CWD to find nearest .ccindex/ dir (monorepo support).
+    Stops at home directory so ~/.ccindex (user model cache) is not treated as a project root.
+    """
+    home = Path.home()
     current = Path.cwd()
     for parent in [current, *current.parents]:
+        if parent == home:
+            break  # ~/.ccindex is user config cache, not a project marker
         if (parent / ".ccindex").exists():
             return parent
     return current  # fallback: treat CWD as root
@@ -36,9 +42,15 @@ def index(show_progress):
     from ccindex.models import get_model_dir, EmbeddingModel, ModelNotFoundError
     from ccindex.indexer import Indexer
 
+    _t0 = time.time()
+    def _dbg(msg: str):
+        print(f"[ccindex {time.time()-_t0:6.2f}s] {msg}", file=sys.stderr, flush=True)
+
     root = _find_project_root()
-    config = load_config(root)
     db_path = _get_db_path(root)
+    _dbg(f"root={root}  db_exists={db_path.exists()}")
+
+    config = load_config(root)
 
     try:
         model_dir = get_model_dir("jina-code-onnx")
@@ -46,7 +58,14 @@ def index(show_progress):
         click.echo(str(e), err=True)
         sys.exit(2)
 
+    _dbg(f"loading model from {model_dir}")
     model = EmbeddingModel(model_dir)
+    _dbg("model loaded")
+
+    # Check existence BEFORE creating Indexer — Indexer.__init__ creates the DB file,
+    # so checking after construction always returns True and forces incremental mode.
+    already_indexed = db_path.exists()
+    _dbg(f"already_indexed={already_indexed}")
 
     if show_progress:
         from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeRemainingColumn
@@ -63,7 +82,7 @@ def index(show_progress):
                 progress.update(task, completed=done, total=total)
 
             indexer = Indexer(root=root, config=config, model=model, progress_cb=cb)
-            if db_path.exists():
+            if already_indexed:
                 from ccindex.index import Index
                 from ccindex import git
                 idx = Index(db_path)
@@ -104,7 +123,7 @@ def index(show_progress):
         click.echo("Index updated.")
     else:
         indexer = Indexer(root=root, config=config, model=model)
-        if db_path.exists():
+        if already_indexed:
             indexer.run_incremental()
         else:
             indexer.run_full()

@@ -1,4 +1,6 @@
 from __future__ import annotations
+import sys
+import time
 from pathlib import Path
 from typing import Callable
 import numpy as np
@@ -7,6 +9,11 @@ from ccindex.walker import walk_project
 from ccindex.chunker import chunk_file, Chunk
 from ccindex.index import Index
 from ccindex.models import EmbeddingModel
+
+_t_start = time.time()
+
+def _dbg(msg: str):
+    print(f"[indexer {time.time()-_t_start:6.2f}s] {msg}", file=sys.stderr, flush=True)
 
 
 class Indexer:
@@ -39,41 +46,43 @@ class Indexer:
             gi.write_text(entry)
 
     def _embed_and_write(self, chunks: list[Chunk], done_so_far: int, total: int):
-        """Embed chunks in length-sorted batches and write to DB immediately.
-
-        Sorting by text length before batching keeps each batch's padded seq_len
-        near the actual chunk length, avoiding O(seq²) wasted attention on padding.
-        e.g. batch of 32 short chunks pads to ~160 tokens (fast) instead of 512 (slow).
-        """
         batch_size = self.config.batch_size
-        # Sort by length so each batch pads to its own max, not the global max
         sorted_chunks = sorted(chunks, key=lambda c: len(c.chunk_text))
+        n_batches = (len(sorted_chunks) + batch_size - 1) // batch_size
+        _dbg(f"_embed_and_write: {len(chunks)} chunks, {n_batches} batches of {batch_size}")
         for i in range(0, len(sorted_chunks), batch_size):
             batch = sorted_chunks[i:i + batch_size]
+            _t_batch = time.time()
             embeddings = self.model.embed([c.chunk_text for c in batch])
+            t_embed = time.time() - _t_batch
             self._index.upsert_chunks(list(zip(batch, embeddings)))
+            t_write = time.time() - _t_batch - t_embed
+            batch_num = i // batch_size + 1
+            _dbg(f"  batch {batch_num}/{n_batches}: embed={t_embed:.2f}s write={t_write:.2f}s")
             if self.progress_cb and total:
                 self.progress_cb(min(done_so_far + i + batch_size, total), total)
 
     def run_full(self, show_progress: bool = False):
+        _dbg(f"run_full: root={self.root}")
         self._ensure_gitignore()
         self._index.set_meta("index_state", "partial")
 
         files = list(walk_project(self.root, self.config))
+        _dbg(f"walk done: {len(files)} files")
 
-        # Collect all chunks first (lightweight — just text, no embeddings yet)
         all_chunks: list[Chunk] = []
         for path in files:
             all_chunks.extend(chunk_file(path, self.root, self.config))
+        _dbg(f"chunk done: {len(all_chunks)} chunks")
 
         total = len(all_chunks)
         if self.progress_cb:
             self.progress_cb(0, total)
 
-        # Embed globally in batches and write to DB as we go (avoids holding all embeddings in RAM)
         self._embed_and_write(all_chunks, 0, total)
 
         self._index.set_meta("index_state", "complete")
+        _dbg("run_full complete")
 
     def run_incremental(self, changed_paths: list[str] | None = None):
         stored_mtimes = self._index.get_all_mtimes()
