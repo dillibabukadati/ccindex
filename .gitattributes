@@ -1,0 +1,2 @@
+models/jina-code-onnx/*.onnx filter=lfs diff=lfs merge=lfs -text
+models/reranker-onnx/*.onnx filter=lfs diff=lfs merge=lfs -text
