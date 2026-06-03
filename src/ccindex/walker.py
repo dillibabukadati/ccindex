@@ -36,6 +36,26 @@ _SECRET_PATTERNS = frozenset({
     ".env", ".pem", ".key",
 })
 
+# Exact filenames that are always credential/config files containing secrets
+_SECRET_FILENAMES = frozenset({
+    "google-services.json",      # Android Firebase config (API keys)
+    "GoogleService-Info.plist",  # iOS Firebase config
+    "credentials.json",          # generic OAuth2 / GCP credentials
+    "client_secret.json",        # GCP OAuth client secrets
+    "service-account.json",      # GCP service account key
+    "serviceAccount.json",
+    ".netrc",
+    "id_rsa", "id_ed25519", "id_ecdsa",  # SSH private keys (no extension)
+})
+
+# Substring patterns matched against the full filename (case-insensitive)
+_SECRET_FILENAME_PATTERNS = (
+    "-adminsdk-",        # Firebase admin SDK: projectid-firebase-adminsdk-xxx.json
+    "-service-account",  # common GCP/AWS service account naming
+    "-credentials",      # e.g. aws-credentials.json, gcp-credentials.json
+    "-private-key",
+)
+
 _TEXT_EXTENSIONS = frozenset({
     ".py", ".js", ".ts", ".tsx", ".jsx", ".go", ".rs", ".java",
     ".c", ".cpp", ".h", ".hpp", ".cs", ".rb", ".php", ".swift",
@@ -123,7 +143,12 @@ def walk_project(root: Path, config: Config) -> Iterator[Path]:
             # Skip lock / secret files
             if filename in _LOCK_FILES:
                 continue
-            if filename.startswith(".env") or any(filename.endswith(s) for s in _SECRET_PATTERNS):
+            if filename in _SECRET_FILENAMES:
+                continue
+            filename_lower = filename.lower()
+            if filename_lower.startswith(".env") or any(filename_lower.endswith(s) for s in _SECRET_PATTERNS):
+                continue
+            if any(pat in filename_lower for pat in _SECRET_FILENAME_PATTERNS):
                 continue
 
             # Skip minified/generated
