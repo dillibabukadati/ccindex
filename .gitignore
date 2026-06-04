@@ -3,3 +3,9 @@ __pycache__/
 .DS_Store
 *.onnx
 *.onnx_data
+
+# ccindex local index (per-project, not shared)
+.ccindex/
+
+# Claude Code local settings (user-specific)
+.claude/
